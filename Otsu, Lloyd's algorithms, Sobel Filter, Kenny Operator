@@ -1,0 +1,133 @@
+from skimage import data
+import numpy as np
+import matplotlib.pyplot as plt
+from skimage import io
+import cv2
+
+#Загрузка изображения:
+image = cv2.imread('/content/drive/MyDrive/o2m.jpeg', cv2.IMREAD_COLOR)
+#image = cv2.imread('filter.jpg')
+
+#Для устранения возможной "нечеткости"/"шумов" в изображении,
+                    #применим метод "Гауссовское сглаживание":
+is_reduce_noise = True
+if is_reduce_noise:
+   image = cv2.GaussianBlur(image, (5, 5), 0)
+
+
+#_______________________________________________________________________________
+#TASK__1__A) Применение пороговой обработки методом Оцу:
+print("TASK__1__A)      Метод Оцу:")
+
+#Создание поля:
+plt.figure(figsize=(15, 10))
+
+#Отображение оригинального изображения:
+plt.subplot(2, 2, 1)
+plt.imshow(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
+plt.title('Первоначальная картинка:')
+plt.axis('off')
+
+#Отображение чернобелого изображения:
+bw_image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+plt.subplot(2, 2, 3)
+plt.imshow(bw_image, cmap='gray')
+plt.title('Черно-белое изображение')
+plt.axis('off')
+
+#Применение метода Оцу для пороговой обработки изображения:
+otsu_threshold, image_result = cv2.threshold(bw_image, 0, 1000,
+                                             cv2.THRESH_BINARY+cv2.THRESH_OTSU)
+plt.subplot(2, 2, 2)
+plt.imshow(image_result, cmap='gray')
+plt.title(f'Изображение, обработанное методом Отсу:')
+plt.axis('off')
+
+#Построение гистограммы интенсивности изображения:
+plt.subplot(2, 2, 4)
+plt.hist(bw_image.ravel(), 300, [0, 300])
+plt.title('Histogram')
+plt.xlabel('Colour intensity')
+plt.ylabel('Number of pixels')
+plt.tight_layout()
+plt.show()
+
+
+#_______________________________________________________________________________
+#TASK__1__B) Алгоритм Ллойда:
+print("TASK__1__B)      Алгоритм Ллойда:")
+
+image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)                                  #Возврат к RGB картинке
+pixel_vals = np.float32(image.reshape((-1, 3)))                                 #Конвертация 3D в 2D
+criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 100, 0.85)
+
+#Определение числа кластеров
+k = 7
+retval, labels, centers = cv2.kmeans(pixel_vals, k, None, criteria, 10,
+                                     cv2.KMEANS_RANDOM_CENTERS)
+#Конвертация значений в 8-bit формат
+centers = np.uint8(centers)
+segmented_data = centers[labels.flatten()]
+
+segmented_image = segmented_data.reshape((image.shape))                         #Обратная конвертация 2D в 3D
+plt.title('Изображение, полученное после кластеризации:')
+plt.imshow(segmented_image)
+
+
+#_______________________________________________________________________________
+#TASK__1__С) Фильтр Собеля:
+print("TASK__1__С)      Фильтр Собеля:")
+
+image_copy = cv2.imread('/content/drive/MyDrive/o2m.jpeg', cv2.IMREAD_COLOR)
+is_reduce_noise = True
+if is_reduce_noise:
+   image_copy = cv2.GaussianBlur(image_copy, (5, 5), 0)
+def sobel_edge_detection(image_copy):
+    a = 0
+    b = 1
+    c = 2
+    f_x = np.array([[-b, -c, -b],[a, a, a],[b, c, b]])
+    f_y = np.array([[-b, a, b],[-c, a, c],[-b, a, b]])
+    result = cv2.filter2D(image_copy,-1,f_x) + cv2.filter2D(image_copy,-1,f_y)
+    return result
+plt.imshow(sobel_edge_detection(image_copy))
+
+
+#_______________________________________________________________________________
+#TASK__2 Оператор Кенни:
+print("TASK__2      Оператор Кенни:")
+
+is_reduce_noise = True
+if is_reduce_noise:
+   image = cv2.GaussianBlur(image, (5, 5), 0)
+
+bw_image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+Keys = cv2.Canny(bw_image, 150, 350, apertureSize=5, L2gradient=True)
+Keys = cv2.bitwise_not(Keys)
+Keys_color = cv2.cvtColor(Keys, cv2.COLOR_GRAY2RGB)
+Keys_color[Keys == 0] = [255, 255, 255]                                         #цвет контуров
+Keys_color[Keys == 255] = [0, 0, 0]                                             #цвет фона
+
+plt.title('Применение оператора Кенни для выделения контуров:')
+plt.imshow(Keys_color)
+
+
+#_______________________________________________________________________________
+#TASK__3 Нумерация контуров:
+print("TASK__3      Нумерация контуров:")
+
+res, binary_image = cv2.threshold(bw_image, 127, 255, cv2.THRESH_BINARY)
+ret, thresh = cv2.threshold(binary_image, 127, 255, 0)
+
+contours, res = cv2.findContours(thresh, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)#Поиск контуров
+contour_image = np.zeros_like(image)                                            #Создание холста для контуров
+colors = [(255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 0), (255, 0, 255)]  #Присвоение контурам цветов
+
+for i, contour in enumerate(contours):                                          #Цикл отрисовки контуров
+    color = colors[i % len(colors)]
+    cv2.drawContours(contour_image, [contour], -1, color, 2)
+
+plt.title('Нумерация контуров:')
+plt.imshow(contour_image)
+plt.axis('off')
+plt.show()
